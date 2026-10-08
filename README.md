@@ -1,6 +1,8 @@
-# Horse Plinko blue-team field kit
+# Horse Plinko Blue-Team Toolkit
 
-A small, local toolkit for a four-person team defending mixed Windows/Linux hosts. Read each script before running it. Run on one host at a time, record the result, and test scored services after every change. The example configs are **web-server examples, not the competition service list**.
+This repo is for preparing for Horse Plinko and similar CCDC-style competitions. The focus is on getting useful information from a box, changing selected local credentials, setting up a firewall around required services, and checking for persistence. It is organized for a four-person team working across Linux and Windows machines.
+
+The goal is to make the first few steps repeatable while keeping scored services running. Read the scripts, work on one box at a time, and verify each change. **The included firewall configs are web-server examples. Update them for the actual host and competition requirements.**
 
 ## What's included
 
@@ -11,16 +13,18 @@ A small, local toolkit for a four-person team defending mixed Windows/Linux host
 | Preview, apply, back up, roll back firewall changes | `linux/firewall.py` | `windows/Firewall.ps1` |
 | Read-only persistence evidence | `linux/persistence.py` | `windows/Persistence.ps1` |
 
-Linux uses Python for explicit validation and error handling; Windows uses PowerShell. No downloads, package installation, host fan-out, account disabling, SELinux changes, or password files. Recon/audit commands do not change configuration, but normal OS access/audit logs may record their execution.
+The Linux scripts use Python, and the Windows scripts use PowerShell. Each runs locally on the machine being defended. Recon and persistence audits are read-only; credential and firewall changes require explicit action. Normal OS logs can still record the read-only commands.
 
-## Prerequisites
+The scripts do not install packages, disable accounts, disable SELinux, wipe existing firewall rules, or save passwords to plaintext files.
 
-- **Linux:** Python 3.8+, standard library only. Recon uses available `ip`, `ss`, `systemctl`, `sshd`, and firewall utilities; missing/denied commands appear in the report. Firewall apply requires root, systemd, `nft`, and kernel nftables support. It refuses active UFW/firewalld rather than stopping them. Legacy-only iptables, BSD, non-systemd, and manager-controlled hosts need their own reviewed native firewall workflow. Do not install/replace firewall managers mid-competition just to use this script.
-- **Windows:** 64-bit Windows PowerShell 5.1 on Windows 10/11 or Server 2016+, with NetSecurity, LocalAccounts, ScheduledTasks and CIM cmdlets. Run changes elevated. Missing read-only providers are reported per section. Local credential rotation deliberately refuses domain controllers; AD passwords need a separate domain-owner procedure. Honor your execution policy: inspect/unblock trusted downloaded files individually if needed; these scripts do not bypass policy.
-- **Both:** approved console access tested before firewall apply; a second management connection; a known service list including scoring source addresses; offline copies of scripts; an approved password manager. Do not run scripts from a directory writable by untrusted users, especially when elevated.
-- No automatic rollback timer is installed. The console requirement is intentional. A firewall apply is a real change, not a connectivity guarantee.
+## Requirements
 
-## Four-person ownership
+- **Linux:** Python 3.8+ with no third-party Python packages. Recon uses tools such as `ip`, `ss`, `systemctl`, `sshd`, and the installed firewall utilities. Missing commands and permission errors are included in the report. Firewall changes require root, systemd, `nft`, and kernel nftables support. The firewall script stops if UFW or firewalld is active. For legacy iptables, BSD, non-systemd, or manager-controlled systems, use a reviewed procedure for that platform. Do not replace the firewall manager during competition just to run this script.
+- **Windows:** 64-bit Windows PowerShell 5.1 on Windows 10/11 or Server 2016+, with NetSecurity, LocalAccounts, ScheduledTasks, and CIM cmdlets. Run changes as Administrator. Audit sections report missing providers individually. The credential script only handles local accounts and refuses domain controllers; coordinate AD password changes with whoever owns the domain. Follow the host's execution policy and inspect downloaded scripts before unblocking trusted files.
+- **Both:** tested console access, a second management session, the required service list and scoring source addresses, an offline copy of the toolkit, and an approved password manager. Keep the scripts in a directory untrusted users cannot modify.
+- **Recovery:** there is no automatic rollback timer. Verify console access before applying a firewall change so you can recover if remote access drops.
+
+## Team setup
 
 | Person | Primary responsibility | Partner check |
 |---|---|---|
@@ -29,20 +33,20 @@ Linux uses Python for explicit validation and error handling; Windows uses Power
 | 3 | Windows pair A, domain coordination | Person 4 verifies management access |
 | 4 | Windows pair B, inject/deadline tracking | Person 3 verifies changes |
 
-Adjust to actual strengths and assigned boxes. Each host has one change owner at a time; the inject tracker can hand off work. Use [the team worksheet](docs/TEAM-WORKSHEET.md) to record ownership, service dependencies and checks. Never put passwords in it.
+This is a starting split for four Linux and four Windows boxes. Adjust it based on the actual environment and what each teammate is comfortable handling. Keep one person responsible for changes on each host at a time, and hand off inject tracking when needed. Use the [team worksheet](docs/TEAM-WORKSHEET.md) for ownership, dependencies, and verification results. Keep passwords in the password manager.
 
-## Deployment order
+## Order of operations
 
-1. Read competition rules/packet. Identify each host, its role, approved accounts, dependencies, score checks, and allowed management sources. Do not infer required services from listening ports alone.
-2. Confirm console access, keep your current session, and establish a second session. Record a baseline of service functionality from another host.
-3. Run reconnaissance and persistence audits into a private report directory. Review errors; a partial report is not a clean bill of health.
-4. Rotate explicitly chosen human/admin local accounts, one at a time, after checking dependencies. Test a new login immediately. Coordinate any domain or service-account changes separately.
-5. Copy and edit a firewall example for this host. Review it with a teammate, preview, then apply from the tested console. Test **new** management connections and application-level scored services immediately. Roll back if something regresses.
-6. Compare later audits with the baseline, investigate changes, and handle injects. Record timestamps and each change. Practice the lab checklist before competition use.
+1. **Figure out what each box needs to do.** Read the competition packet and identify its role, approved accounts, dependencies, scored services, and management sources. A listening port alone does not tell you whether a service is required.
+2. **Make sure you can get back in.** Test console access, keep your current session open, and establish a second session. Check the required services from another machine before changing anything.
+3. **Collect a baseline.** Run recon and persistence audits, save the reports privately, and review any errors. Missing output means that check still needs attention.
+4. **Change selected local credentials.** Check dependencies first, change one approved human/admin account at a time, and test a fresh login immediately. Handle domain and service accounts separately with the responsible teammate.
+5. **Apply the host's firewall plan.** Edit a copy of the example config, review it with a teammate, and run the preview. Apply from the tested console, then check **new** management connections and the actual scored services. Roll back if access or functionality breaks.
+6. **Keep checking.** Compare later audits with the baseline, investigate unexpected changes, and stay on top of injects. Record what changed and when. Practice this sequence with the lab checklist before competition day.
 
 ## Linux quick start
 
-Run from the toolkit directory. The report directory below is private to your user; it is not a shared team drop.
+Run these commands from the toolkit directory on the Linux host. The report folder is private to your user. Use new report filenames for later checks so you keep the original baseline.
 
 ```bash
 umask 077
@@ -64,11 +68,13 @@ sudo python3 linux/firewall.py apply --config config/this-host.json --console-co
 sudo python3 linux/firewall.py rollback
 ```
 
-Replace `alice` with a reviewed existing account. `passwd` supplies the native hidden, repeated password prompt and applies the host's password policy. No old-password backup exists. Linux PAM/NSS integrations must be reviewed on domain-joined machines, particularly if local and domain names collide. Changing a password does not revoke SSH keys, tokens, or existing sessions; audit those separately.
+Replace `alice` with the exact local account you intend to change. The script uses the native `passwd` prompt, which hides password entry, asks for confirmation, and follows the host's password policy. It does not back up the old password.
+
+On domain-joined Linux hosts, review PAM/NSS behavior first, especially when a local and domain account share a name. A password reset does not revoke SSH keys, tokens, or existing sessions. Those need separate review.
 
 ## Windows quick start
 
-Open **64-bit Windows PowerShell as Administrator** in the toolkit directory. Store reports in a new private directory; the following example restricts access to Administrators and SYSTEM using language-independent SIDs. Use a different directory name for each baseline.
+Open **64-bit Windows PowerShell as Administrator** in the toolkit directory on the Windows host. The commands below create a report folder restricted to Administrators and SYSTEM using their SIDs. Choose a new folder name for each baseline.
 
 ```powershell
 $reports = Join-Path $env:ProgramData 'HorsePlinkoReports-Baseline'
@@ -90,15 +96,25 @@ Copy-Item .\config\windows-web.example.json .\config\this-host.json
 .\windows\Firewall.ps1 -Rollback
 ```
 
-`-WhatIf` also previews an apply/rollback without state writes. Credential rotation uses `Read-Host -AsSecureString`; no plaintext password logging or export is performed. Store the intended password in your approved password manager first, enter it carefully, and test a new local login using `HOSTNAME\alice`. Administrative resets can affect EFS/DPAPI data and services/tasks using that account. The script does not update dependent credentials or domain accounts.
+The firewall script also accepts `-WhatIf` to preview an apply or rollback without writing state.
 
-## Firewall configuration
+Credential changes use `Read-Host -AsSecureString` and do not log or export plaintext passwords. Save the intended password in your approved password manager, enter it carefully, and test a fresh login with `HOSTNAME\alice`. Administrative password resets can affect EFS/DPAPI data and services or tasks that use the account. The script does not update those dependencies or change domain credentials.
 
-Both platforms use the same JSON shape. `management.sources` is a nonempty list of literal IPs/CIDRs and cannot contain `/0`; `tcp_ports` is a nonempty integer list. Each service needs exactly `name`, `protocol` (`tcp` or `udp`), `ports` (integers 1–65535), and `sources`. CIDRs must have host bits cleared. DNS service needs separate TCP and UDP entries; port ranges are not accepted. `services: []` is allowed when only management is needed.
+## Setting up the firewall config
 
-The example management address `192.0.2.10/32` is a documentation placeholder: **replace it**. Public web examples allow both IPv4 and IPv6. Only add `::/0` if the service should be public on IPv6. Add the real management IPv6 source separately if used. If NAT is involved, use the source address the server actually sees. Custom SSH/RDP/WinRM ports must match the host. Linux DHCP clients may need explicit UDP 68/546 inbound entries from the relevant DHCP sources; test renewal, not just initial connectivity.
+Both platforms use the same JSON structure:
 
-Do not paste a web config onto a domain controller, DNS server, mail server, database server, router or container host. AD/RPC, passive FTP, monitoring, backup and cluster traffic have additional dependencies. Build a host-specific list from the packet and observed operation; review dynamic-port needs with the service owner. This kit does not change RPC ranges or guess what the scorer needs.
+- `management.sources`: one or more management client IPs/CIDRs. Unrestricted `/0` sources are rejected here.
+- `management.tcp_ports`: one or more actual management ports, such as the configured SSH, RDP, or WinRM port.
+- `services`: entries containing exactly `name`, `protocol`, `ports`, and `sources`. Use `tcp` or `udp` and integer ports from 1–65535. Port ranges are not supported.
+
+Use network addresses for CIDRs: for example, `192.0.2.0/24`, not `192.0.2.10/24`. DNS needs separate TCP and UDP entries. An empty `services: []` list is valid when the host only needs management access.
+
+**Replace `192.0.2.10/32` before applying.** It is a placeholder for the management client, not the server being defended. If NAT is involved, use the source address the server actually sees.
+
+The web examples allow public IPv4 and IPv6 access. Keep `::/0` only when the service should be public on IPv6, and add your management IPv6 source separately if you use it. Check custom management ports against the host's configuration. Linux DHCP clients may need inbound UDP 68/546 rules from the relevant DHCP sources; test lease renewal too.
+
+Build the config for the role of the box. A web-server example does not cover a domain controller, DNS server, mail server, database, router, or container host. AD/RPC, passive FTP, monitoring, backups, and clusters can need additional traffic. Use the packet and service behavior to build the list, and check dynamic-port requirements with the service owner. The scripts do not change RPC ranges or automatically identify scoring requirements.
 
 ### Linux behavior and rollback
 
@@ -116,13 +132,19 @@ Do not paste a web config onto a domain controller, DNS server, mail server, dat
 - Rollback restores the saved local profile Enabled/DefaultInboundAction values and removes only this transaction's rule IDs. It leaves other rules in place. Coordinate with teammates: rollback could overwrite later changes to those same two profile settings. It does not restore domain policy.
 - A failed apply attempts rollback. An interrupted apply or incomplete rollback leaves a journal for `-Rollback`. A full `.wfw` import is an exceptional manual disaster-recovery operation that replaces wider policy; the toolkit never performs it automatically.
 
-## Audits and sensitive data
+## Reading the audit results
 
-Linux persistence reports hash/metadata baselines for cron, systemd, startup files, SSH keys and authentication configuration; they also list timers, unit files, at jobs and modules. Read changed files locally to understand them. Windows audits scheduled tasks, services, drivers, startup files, autoruns, IFEO, WMI subscriptions and Defender exclusions. Only loaded user registry hives are inspected. Neither audit is a complete rootkit detector or a malware verdict.
+The Linux persistence audit collects file hashes and metadata for cron, systemd, startup files, SSH keys, and authentication configuration. It also lists timers, unit files, at jobs, and modules. Review changed files locally to understand what they do.
 
-Reports can expose IPs, usernames, paths and pre-existing secrets embedded in service/task/autorun arguments. Treat them as private evidence. The toolkit never reads password hashes or creates password logs, but it cannot sanitize secrets already embedded in system configuration. Do not upload reports, state, backups or real competition configs to GitHub. `.gitignore` is a convenience, not a guarantee; review staged files yourself.
+The Windows audit checks scheduled tasks, services, drivers, startup files, autoruns, Image File Execution Options (IFEO), WMI subscriptions, and Defender exclusions. It only inspects user registry hives that are already loaded.
 
-## Tests and readiness
+Treat the results as investigation leads. An unfamiliar entry is not automatically malicious, and an audit with no obvious findings does not prove the host is clean.
+
+Keep the reports private. They can contain IPs, usernames, paths, and secrets that were already embedded in service, task, or autorun arguments. The scripts do not read password hashes or create password logs, but collected configuration can still contain sensitive data.
+
+Do not push reports, state files, backups, or real competition configs to GitHub. Check the staged diff before committing, even with `.gitignore` in place.
+
+## Testing
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py' -v
@@ -133,10 +155,17 @@ python3 -m compileall -q linux tests
 .\tests\Test-Windows.ps1
 ```
 
-Portable tests use mocked system commands; they never change the host firewall or passwords. The PowerShell script parses all Windows scripts and checks good/bad dry-run inputs. Run [LAB-TESTS.md](docs/LAB-TESTS.md) on disposable VMs for actual privilege, password-policy, firewall, service and rollback behavior. See [TEST-RESULTS.md](docs/TEST-RESULTS.md) for the delivery's exact verification status.
+The Python tests simulate system commands, so they can run on macOS without changing passwords or firewall settings. All 22 portable tests passed. The PowerShell test script checks Windows script syntax and valid/invalid dry-run inputs.
 
-## Reference and publishing
+Live Linux firewall behavior, Windows execution, and actual credential changes still need testing on the target operating systems. Use disposable VMs and work through [LAB-TESTS.md](docs/LAB-TESTS.md), including rollback and service checks. [TEST-RESULTS.md](docs/TEST-RESULTS.md) records what has and has not been verified.
 
-Conceptual reference: [caol777/CCDC](https://github.com/caol777/CCDC), particularly its README, Linux inventory/firewall scripts and Windows firewall script, reviewed October 8, 2026. This kit is a separate implementation; no upstream script code is bundled. Source-specific operational documentation: [nftables chain behavior](https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains) and [Windows firewall profile settings](https://learn.microsoft.com/en-us/powershell/module/netsecurity/set-netfirewallprofile).
+## References
 
-The directory is ready for your review and your own GitHub upload. No Git repository, commit, remote, or push is created by this kit. Choose your preferred license before publishing; none is assumed.
+[caol777/CCDC](https://github.com/caol777/CCDC) was the reference for the general workflow and areas to cover. Its README, Linux inventory/firewall scripts, and Windows firewall script were reviewed on October 8, 2026. This repo uses separate implementations and does not bundle the upstream scripts.
+
+Technical references:
+
+- [nftables chain behavior](https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains)
+- [Windows firewall profile settings](https://learn.microsoft.com/en-us/powershell/module/netsecurity/set-netfirewallprofile)
+
+No license has been selected for this repository yet.
