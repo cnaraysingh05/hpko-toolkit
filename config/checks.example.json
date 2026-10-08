@@ -1,0 +1,5 @@
+[
+  {"name": "linux-ssh", "type": "tcp", "host": "192.0.2.20", "port": 22},
+  {"name": "windows-rdp", "type": "tcp", "host": "192.0.2.30", "port": 3389},
+  {"name": "web-home", "type": "http", "url": "http://192.0.2.20/", "status": 200}
+]

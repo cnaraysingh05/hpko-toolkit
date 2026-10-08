@@ -30,3 +30,13 @@ Use snapshots and console access. Do not run these mutation checks on your works
 - Credential rotation on a domain controller must refuse. Audit output may show missing LocalAccounts support there; other sections should still be collected.
 
 Do not mark native integration tests passed based on the mocked tests. Keep your lab results with the private competition notes.
+
+## Guided workflow and service checks
+
+- On a Linux VM with Python available, run `bash linux/start.sh --check`; no packages or firewall settings should change. Open the menu as root, collect a baseline, and confirm the report directory is root-only. Review all three reports, including errors.
+- On a disposable supported Linux VM without Python, `--check` must fail without installing anything. Then test `--install-python`: cancelling must leave packages alone; confirming uses the system repositories and the package manager prompt. Check repository/network failure and Python older than 3.8. Do not remove the system Python from a working host to make this test possible.
+- On Windows, run `tests/Test-Windows.ps1` to parse the new menu and review scripts too. In an elevated menu session, collect the baseline and check its Administrators/SYSTEM-only ACL. Confirm no report contains a password entered during rotation.
+- Cancel menu credential and firewall confirmations. No change should occur. Try an invalid config and verify apply is not reached. A failed subcommand must be shown as a failure, and the menu must not declare the host secure.
+- From the management client, edit `checks.local.json` for a lab SSH/RDP port and web endpoint. Preview should generate no traffic. Run should report the expected results. Stop the lab listener or deliberately use a wrong expected HTTP status and confirm a failing check gives exit code 1. Invalid configuration must fail with exit code 2 before contacting any target.
+- Test HTTPS using a correctly trusted certificate, then an untrusted one. The latter should fail, not skip certificate validation. A redirect should not be followed automatically.
+- Complete HANDOFF.md with a partner, including actual login/application tests and the next check time. Report collection and a successful TCP handshake alone are not enough.
