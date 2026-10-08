@@ -1,0 +1,6 @@
+{
+  "management": {"sources": ["192.0.2.10/32"], "tcp_ports": [3389]},
+  "services": [
+    {"name": "web", "protocol": "tcp", "ports": [80, 443], "sources": ["0.0.0.0/0", "::/0"]}
+  ]
+}

@@ -1,0 +1,9 @@
+reports/
+backups/
+state/
+*.wfw
+*.clixml
+__pycache__/
+*.pyc
+.DS_Store
+config/this-host.json
