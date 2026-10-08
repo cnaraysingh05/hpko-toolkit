@@ -12,14 +12,49 @@ The goal is to make the first few steps repeatable while keeping scored services
 | Rotate one selected local account | `linux/credentials.py` | `windows/Credentials.ps1` |
 | Preview, apply, back up, roll back firewall changes | `linux/firewall.py` | `windows/Firewall.ps1` |
 | Read-only persistence evidence | `linux/persistence.py` | `windows/Persistence.ps1` |
+| Guided menu and private report collection | `linux/start.sh` | `windows/Start.ps1` |
+| Read-only security settings review | `linux/review.py` | `windows/Review.ps1` |
 
 The Linux scripts use Python, and the Windows scripts use PowerShell. Each runs locally on the machine being defended. Recon and persistence audits are read-only; credential and firewall changes require explicit action. Normal OS logs can still record the read-only commands.
 
-The scripts do not install packages, disable accounts, disable SELinux, wipe existing firewall rules, or save passwords to plaintext files.
+The scripts do not disable accounts, disable SELinux, wipe existing firewall rules, or save passwords to plaintext files. The Linux starter can install Python through the system package manager, but only with `--install-python` and an explicit confirmation. It does not run a full system update or install a firewall manager.
+
+## Start here
+
+For a basic set of four Windows and four Linux boxes, this covers the initial workflow: baseline, selected local passwords, service-aware firewall changes, and review of common security settings. It is still on us to review findings and test the services. A completed menu step does not mean the box is secure.
+
+Copy the complete repo onto each assigned host. Keep an offline copy in case GitHub or internet access is unavailable. From the toolkit directory, use the menu for that OS.
+
+**Linux:**
+
+```bash
+# Check prerequisites without installing anything or opening the menu.
+bash linux/start.sh --check
+
+# Start the guided menu as root.
+sudo bash linux/start.sh
+
+# Only if Python 3.8+ is missing and package installation is allowed:
+sudo bash linux/start.sh --install-python
+```
+
+The installation option supports Debian/Ubuntu/Linux Mint through `apt-get` and Fedora/RHEL/CentOS/Rocky/AlmaLinux through `dnf` or `yum`. It uses the configured system repositories and keeps the package manager's own confirmation. Missing repository access, stale package indexes, or a repository that only offers an older Python can still prevent installation. Stop and review the error; there is no fallback download or automatic upgrade. Bash itself must already be installed.
+
+**Windows:** open 64-bit Windows PowerShell as Administrator, then run:
+
+```powershell
+.\windows\Start.ps1
+```
+
+Use option 1 to collect a baseline, option 2 to review security settings, option 3 for a selected local password, and options 4/5 to preview/apply your edited firewall config. Option 6 is rollback. The menus do not invent account lists or service requirements: prepare the host's JSON config using the instructions below. Password and firewall changes still have confirmations.
+
+Linux menu reports go into a new root-only `/var/tmp/horse-plinko-reports-*` directory. Windows menu reports go into a new `%ProgramData%\HorsePlinkoReports-*` directory restricted to Administrators and SYSTEM. These locations are outside the repo; record the printed path in your private notes. Reports can contain sensitive system details. An audit can finish while individual checks report errors, so read the output.
+
+Before handing a box off or switching to injects, complete [HANDOFF.md](docs/HANDOFF.md). Have a teammate verify a fresh login and the required services from another machine, record unresolved findings, and assign the next check.
 
 ## Requirements
 
-- **Linux:** Python 3.8+ with no third-party Python packages. Recon uses tools such as `ip`, `ss`, `systemctl`, `sshd`, and the installed firewall utilities. Missing commands and permission errors are included in the report. Firewall changes require root, systemd, `nft`, and kernel nftables support. The firewall script stops if UFW or firewalld is active. For legacy iptables, BSD, non-systemd, or manager-controlled systems, use a reviewed procedure for that platform. Do not replace the firewall manager during competition just to run this script.
+- **Linux:** Bash for the starter; Python 3.8+ with no third-party Python packages. Recon uses tools such as `ip`, `ss`, `systemctl`, `sshd`, and the installed firewall utilities. Missing commands and permission errors are included in the report. Firewall changes require root, systemd, `nft`, and kernel nftables support. The firewall script stops if UFW or firewalld is active. For legacy iptables, BSD, non-systemd, or manager-controlled systems, use a reviewed procedure for that platform. Do not replace the firewall manager during competition just to run this script.
 - **Windows:** 64-bit Windows PowerShell 5.1 on Windows 10/11 or Server 2016+, with NetSecurity, LocalAccounts, ScheduledTasks, and CIM cmdlets. Run changes as Administrator. Audit sections report missing providers individually. The credential script only handles local accounts and refuses domain controllers; coordinate AD password changes with whoever owns the domain. Follow the host's execution policy and inspect downloaded scripts before unblocking trusted files.
 - **Both:** tested console access, a second management session, the required service list and scoring source addresses, an offline copy of the toolkit, and an approved password manager. Keep the scripts in a directory untrusted users cannot modify.
 - **Recovery:** there is no automatic rollback timer. Verify console access before applying a firewall change so you can recover if remote access drops.
@@ -132,11 +167,30 @@ Build the config for the role of the box. A web-server example does not cover a 
 - Rollback restores the saved local profile Enabled/DefaultInboundAction values and removes only this transaction's rule IDs. It leaves other rules in place. Coordinate with teammates: rollback could overwrite later changes to those same two profile settings. It does not restore domain policy.
 - A failed apply attempts rollback. An interrupted apply or incomplete rollback leaves a journal for `-Rollback`. A full `.wfw` import is an exceptional manual disaster-recovery operation that replaces wider policy; the toolkit never performs it automatically.
 
+## Check services from another machine
+
+Run `tools/check_services.py` on your management machine before and after changes. It works with Python 3.8+ on macOS, Linux, or Windows and does not need root. Only list systems assigned to your team.
+
+```bash
+cp config/checks.example.json config/checks.local.json
+# Edit checks.local.json with the actual host IPs/URLs, ports, and expected HTTP status.
+python3 tools/check_services.py --config config/checks.local.json
+python3 tools/check_services.py --config config/checks.local.json --run
+```
+
+The first command previews the checks without contacting any targets. `--run` makes one TCP connection or HTTP GET per listed check. It returns exit code 0 when all checks pass, 1 when a check fails, and 2 for an input/configuration error. `--timeout 5` is the default socket timeout; system DNS resolution can take longer. It does not use an HTTP proxy or follow redirects, and HTTPS keeps certificate validation enabled. For a service that intentionally redirects, set the expected status to its redirect code and add a separate check for the approved destination if needed.
+
+A TCP pass means the port accepted a connection. An HTTP pass means the status code matched. Neither verifies a password, page contents, database query, DNS answer, file share operation, or the competition scorer's result. Test those functions separately. Checking from an allowed management address also does not prove access is blocked from other sources.
+
+The example addresses are placeholders. Keep your edited `checks.local.json` private; it is ignored by Git. Do not embed passwords or tokens in URLs. Use the same config before and after a change so the results are comparable.
+
 ## Reading the audit results
 
 The Linux persistence audit collects file hashes and metadata for cron, systemd, startup files, SSH keys, and authentication configuration. It also lists timers, unit files, at jobs, and modules. Review changed files locally to understand what they do.
 
 The Windows audit checks scheduled tasks, services, drivers, startup files, autoruns, Image File Execution Options (IFEO), WMI subscriptions, and Defender exclusions. It only inspects user registry hives that are already loaded.
+
+The additional security reviews make common items easier to find. Linux highlights extra UID 0 accounts, interactive accounts, privileged groups, effective SSH settings, sudoers syntax, sessions, and SELinux/AppArmor status. Windows collects local administrators, enabled users, Defender status/exclusions, RDP NLA, SMB settings, UAC, and recent hotfixes. These reviews do not change those settings.
 
 Treat the results as investigation leads. An unfamiliar entry is not automatically malicious, and an audit with no obvious findings does not prove the host is clean.
 
@@ -148,16 +202,17 @@ Do not push reports, state files, backups, or real competition configs to GitHub
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py' -v
-python3 -m compileall -q linux tests
+python3 -m compileall -q linux tools tests
+bash -n linux/start.sh
 ```
 
 ```powershell
 .\tests\Test-Windows.ps1
 ```
 
-The Python tests simulate system commands, so they can run on macOS without changing passwords or firewall settings. All 22 portable tests passed. The PowerShell test script checks Windows script syntax and valid/invalid dry-run inputs.
+The Python tests simulate system commands, so they can run on macOS without changing passwords or firewall settings. All 38 portable tests passed, including launcher cancellation, missing-Python handling without installation, security-review findings, service-check validation, and simulated connection results. Bash syntax validation also passed. Network checks in this test suite are mocked. The PowerShell test script checks Windows script syntax and valid/invalid dry-run inputs.
 
-Live Linux firewall behavior, Windows execution, and actual credential changes still need testing on the target operating systems. Use disposable VMs and work through [LAB-TESTS.md](docs/LAB-TESTS.md), including rollback and service checks. [TEST-RESULTS.md](docs/TEST-RESULTS.md) records what has and has not been verified.
+Live Linux firewall behavior, actual package installation, Windows execution, live service checks, and actual credential changes still need testing on the target operating systems. Use disposable VMs and work through [LAB-TESTS.md](docs/LAB-TESTS.md), including rollback and service checks. [TEST-RESULTS.md](docs/TEST-RESULTS.md) records what has and has not been verified.
 
 ## References
 

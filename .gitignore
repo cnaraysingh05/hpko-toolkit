@@ -7,3 +7,4 @@ __pycache__/
 *.pyc
 .DS_Store
 config/this-host.json
+config/checks.local.json
