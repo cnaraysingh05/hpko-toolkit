@@ -1,0 +1,1 @@
+pbpaste > tools/check_services.sh

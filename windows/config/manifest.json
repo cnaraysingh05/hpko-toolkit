@@ -1,0 +1,7 @@
+{
+  "management": { "sources": ["172.16.__T__.0/24"], "tcp_ports": [3389] },
+  "services": [
+    { "name": "rdp",     "protocol": "tcp", "ports": [3389], "sources": ["0.0.0.0/0"] },
+    { "name": "mariadb", "protocol": "tcp", "ports": [3306], "sources": ["0.0.0.0/0"] }
+  ]
+}
